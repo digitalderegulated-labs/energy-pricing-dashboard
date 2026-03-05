@@ -18,8 +18,10 @@ data = response.json()["response"]["data"]
 
 df = pd.DataFrame(data)
 
-# convert date
 df["period"] = pd.to_datetime(df["period"])
+
+# convert price column to numeric
+df["price"] = pd.to_numeric(df["price"], errors="coerce")
 
 # ----------------------------------
 # METRICS
