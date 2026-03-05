@@ -10,28 +10,58 @@ These dashboards include short "Insights" sections that explain what the data me
 Note: These insights are examples of how an analyst might interpret the data. They are included for educational
 and demonstration purposes and should not be considered formal operational guidance.
 
-# Energy Pricing Dashboard
+# ISO Electricity Pricing Dashboard
 
-Simple energy market pricing dashboard built with Python and Streamlit. Note (Portfolio Build)
+Live App:
+https://digitalderegulated-labs-energy-pricing-dashboard.streamlit.app
 
-This project is a working demo built to show how operational workflows can be translated into clean,
-decision-friendly dashboards.
+## Overview
 
-The "Insights" sections are example interpretations designed to help non-experts understand the data.
-They are not formal market analysis or operational guidance.
+This dashboard visualizes electricity price data from U.S. ISO markets and explains price behavior
+in a way that is understandable to both traders and non-technical stakeholders.
 
-This application pulls market pricing data from the PJM ISO API and visualizes electricity prices.
+Electricity markets produce large volumes of real-time price data. Without context,
+these signals are difficult to interpret.
 
-Features
-- PJM Day Ahead LMP pricing
-- Interactive price charts
-- Market data tables
+This dashboard focuses on three core questions:
 
-Tech Stack
-- Python
-- Streamlit
-- Plotly
-- PJM API
+• Are prices rising or falling?
+• How volatile is the market?
+• Where are potential risk signals emerging?
 
-Author
-Digital Deregulated Labs
+## Key Features
+
+Day-Ahead vs Real-Time price monitoring
+
+Price volatility indicators
+
+Spike detection and percentile analysis
+
+Intraday heatmaps
+
+Trader and executive views
+
+## Example Insights
+
+Insights are displayed below each visualization to explain what the chart means.
+
+Example:
+
+Signal  
+Price spikes exceeded the 95th percentile threshold during the afternoon trading window.
+
+Implication  
+This suggests elevated system stress or congestion during peak demand hours.
+
+Next Step  
+Traders may monitor hub-to-load spreads or congestion patterns.
+
+## Data Sources
+
+CAISO OASIS  
+Public ISO market data
+
+## Purpose
+
+This project demonstrates how complex energy market data can be transformed into clear,
+actionable dashboards that support both operational and executive decision making.
