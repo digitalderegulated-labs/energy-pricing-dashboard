@@ -1,11 +1,8 @@
 import streamlit as st
 import pandas as pd
 import requests
-import plotly.express as px
 
-st.set_page_config(layout="wide")
-
-st.title("⚡ U.S. Energy Market Dashboard")
+st.title("Energy API Debug")
 
 API_KEY = st.secrets["EIA_API_KEY"]
 
@@ -13,20 +10,12 @@ url = f"https://api.eia.gov/v2/electricity/rto/region-data/data/?api_key={API_KE
 
 response = requests.get(url)
 
-data = response.json()["response"]["data"]
+data = response.json()
 
-df = pd.DataFrame(data)
+st.write("RAW API RESPONSE")
+st.write(data)
 
-df["period"] = pd.to_datetime(df["period"])
+df = pd.DataFrame(data["response"]["data"])
 
-fig = px.line(
-    df,
-    x="period",
-    y="value",
-    color="region",
-    title="Wholesale Electricity Prices"
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-st.dataframe(df)
+st.write("DATAFRAME")
+st.write(df)
