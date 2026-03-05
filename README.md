@@ -1,3 +1,15 @@
+# Digital Deregulated Labs – Operational Intelligence Dashboards
+
+This repository contains a working dashboard built as part of Digital Deregulated Labs portfolio.
+
+The goal of these projects is to demonstrate how complex operational data can be translated into clear,
+decision-friendly dashboards for both technical users and non-experts.
+
+These dashboards include short "Insights" sections that explain what the data means and why it matters.
+
+Note: These insights are examples of how an analyst might interpret the data. They are included for educational
+and demonstration purposes and should not be considered formal operational guidance.
+
 # Energy Pricing Dashboard
 
 Simple energy market pricing dashboard built with Python and Streamlit. Note (Portfolio Build)
