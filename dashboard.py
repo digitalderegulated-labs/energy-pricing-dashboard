@@ -7,26 +7,35 @@ st.set_page_config(layout="wide")
 
 st.title("⚡ U.S. Energy Market Dashboard")
 
+# get API key from Streamlit secrets
 API_KEY = st.secrets["EIA_API_KEY"]
 
-url = f"https://api.eia.gov/v2/electricity/rto/region-data/data/?api_key={API_KEY}&frequency=hourly&data[0]=value&start=2024-01-01"
+# API request
+url = f"https://api.eia.gov/v2/electricity/rto/region-data/data/?api_key={API_KEY}&frequency=hourly&data[0]=value&facets[respondent][]=PJM&start=2024-01-01"
 
 response = requests.get(url)
 
-data = response.json()["response"]["data"]
+json_data = response.json()
+
+data = json_data["response"]["data"]
+
+# check if data exists
+if len(data) == 0:
+    st.error("No data returned from EIA API")
+    st.stop()
 
 df = pd.DataFrame(data)
 
+# convert time column
 df["period"] = pd.to_datetime(df["period"])
 
-st.subheader("Wholesale Electricity Prices")
+st.subheader("PJM Wholesale Electricity Prices")
 
 fig = px.line(
     df,
     x="period",
     y="value",
-    color="region",
-    title="Wholesale Electricity Prices by Region"
+    title="PJM Wholesale Price Trend"
 )
 
 st.plotly_chart(fig, use_container_width=True)
