@@ -1,60 +1,93 @@
 import streamlit as st
-import pandas as pd
 import requests
+import pandas as pd
 import plotly.express as px
 
 st.set_page_config(layout="wide")
 
-st.title("⚡ U.S. Energy Market Dashboard")
+st.title("⚡ U.S. Power Market Dashboard")
 
 API_KEY = st.secrets["EIA_API_KEY"]
 
-# Use working EIA dataset (wholesale electricity prices)
-url = f"https://api.eia.gov/v2/electricity/retail-sales/data/?api_key={API_KEY}&frequency=monthly&data[0]=price"
+def get_data(series_id):
+    url = f"https://api.eia.gov/v2/seriesid/{series_id}?api_key={API_KEY}"
+    r = requests.get(url)
+    data = r.json()
 
-response = requests.get(url)
+    df = pd.DataFrame(data["response"]["data"])
 
-data = response.json()["response"]["data"]
+    df["period"] = pd.to_datetime(df["period"])
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
-df = pd.DataFrame(data)
+    return df
 
-df["period"] = pd.to_datetime(df["period"])
 
-# convert price column to numeric
-df["price"] = pd.to_numeric(df["price"], errors="coerce")
+# PJM wholesale electricity price
+pjm = get_data("ELEC.PRICE.PJM-ALL.M")
 
-# ----------------------------------
-# METRICS
-# ----------------------------------
+# ERCOT price
+ercot = get_data("ELEC.PRICE.ERCOT-ALL.M")
 
-latest_price = df["price"].iloc[-1]
-avg_price = df["price"].mean()
-max_price = df["price"].max()
+# California price
+caiso = get_data("ELEC.PRICE.CAISO-ALL.M")
 
-col1, col2, col3 = st.columns(3)
+# Natural gas price
+gas = get_data("NG.RNGWHHD.M")
 
-col1.metric("Latest Electricity Price", f"${latest_price:,.2f}")
-col2.metric("Average Price", f"${avg_price:,.2f}")
-col3.metric("Peak Price", f"${max_price:,.2f}")
+# Electricity demand
+demand = get_data("EBA.US48-ALL.D.H")
+
+# ---- metrics ----
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    "PJM Power Price",
+    f"${pjm['value'].iloc[0]:.2f}/MWh"
+)
+
+col2.metric(
+    "ERCOT Power Price",
+    f"${ercot['value'].iloc[0]:.2f}/MWh"
+)
+
+col3.metric(
+    "CAISO Power Price",
+    f"${caiso['value'].iloc[0]:.2f}/MWh"
+)
+
+col4.metric(
+    "Henry Hub Gas",
+    f"${gas['value'].iloc[0]:.2f}/MMBtu"
+)
 
 st.divider()
 
-# ----------------------------------
-# PRICE TREND
-# ----------------------------------
+# ---- power price chart ----
+
+power_df = pd.concat([
+    pjm.assign(market="PJM"),
+    ercot.assign(market="ERCOT"),
+    caiso.assign(market="CAISO")
+])
 
 fig = px.line(
-    df,
+    power_df,
     x="period",
-    y="price",
-    color="stateDescription",
-    title="Electricity Price Trend"
+    y="value",
+    color="market",
+    title="Wholesale Power Prices"
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-st.divider()
+# ---- demand chart ----
 
-st.subheader("Raw Data")
+fig2 = px.line(
+    demand,
+    x="period",
+    y="value",
+    title="U.S. Electricity Demand"
+)
 
-st.dataframe(df)
+st.plotly_chart(fig2, use_container_width=True)
