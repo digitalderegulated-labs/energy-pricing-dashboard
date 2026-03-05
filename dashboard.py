@@ -1,82 +1,56 @@
 import streamlit as st
-import requests
 import pandas as pd
+import requests
+import zipfile
+import io
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # =========================
-# PAGE + BRAND STYLING
+# CONFIG + BRANDING
 # =========================
-st.set_page_config(page_title="U.S. Power Market Dashboard", layout="wide")
+st.set_page_config(page_title="Power Market Dashboard", layout="wide")
 
-# --- Brand controls (edit these) ---
-COMPANY_NAME = "Digital Deregulated Labs"
-TAGLINE = "Energy market intelligence — clean, fast, decision-ready."
-FOOTER_NOTE = f"© {datetime.now().year} {COMPANY_NAME}. Internal use."
+COMPANY_NAME = st.secrets.get("COMPANY_NAME", "Digital Deregulated Labs")
+TAGLINE = st.secrets.get("DASHBOARD_TAGLINE", "Decision-grade power market visibility.")
+PJM_API_KEY = st.secrets.get("PJM_API_KEY", "")
 
 st.markdown(
     """
 <style>
-/* App background + typography */
-.block-container { padding-top: 1.2rem; padding-bottom: 2.2rem; max-width: 1400px; }
+.block-container { padding-top: 1.1rem; padding-bottom: 2.4rem; max-width: 1450px; }
 h1, h2, h3 { letter-spacing: -0.02em; }
-.small-muted { color: rgba(49, 51, 63, 0.7); font-size: 0.95rem; }
-.card {
-  border: 1px solid rgba(49, 51, 63, 0.12);
-  border-radius: 14px;
-  padding: 14px 16px;
-  background: rgba(255,255,255,0.85);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.05);
-}
-.card-title { font-size: 0.9rem; color: rgba(49, 51, 63, 0.7); margin-bottom: 6px; }
-.card-value { font-size: 1.6rem; font-weight: 700; }
+hr { margin: 0.9rem 0 1.1rem 0; border-top: 1px solid rgba(49, 51, 63, 0.12); }
+.brandbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 16px; margin-bottom: 10px; }
+.brand-name { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(49, 51, 63, 0.82); }
+.brand-title { font-size: 2.05rem; font-weight: 850; letter-spacing: -0.03em; margin-top: 2px; }
+.brand-tagline { font-size: 1rem; color: rgba(49, 51, 63, 0.70); }
+.pill { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(49, 51, 63, 0.06);
+        border: 1px solid rgba(49, 51, 63, 0.10); font-size: 0.85rem; color: rgba(49, 51, 63, 0.75); }
+.card { border: 1px solid rgba(49, 51, 63, 0.12); border-radius: 14px; padding: 14px 16px;
+        background: rgba(255,255,255,0.90); box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
+.card-title { font-size: 0.9rem; color: rgba(49, 51, 63, 0.70); margin-bottom: 6px; }
+.card-value { font-size: 1.65rem; font-weight: 800; }
 .card-sub { font-size: 0.85rem; color: rgba(49, 51, 63, 0.65); margin-top: 6px; }
-.section-title { margin-top: 0.25rem; margin-bottom: 0.25rem; }
-hr { margin: 0.8rem 0 1.1rem 0; border-top: 1px solid rgba(49, 51, 63, 0.12); }
-.insight {
-  border-left: 4px solid rgba(49, 51, 63, 0.28);
-  padding: 10px 12px;
-  margin-top: 10px;
-  border-radius: 10px;
-  background: rgba(49, 51, 63, 0.04);
-  color: rgba(49, 51, 63, 0.85);
-  font-size: 0.95rem;
-}
-.brandbar {
-  display:flex; align-items:flex-start; justify-content:space-between;
-  gap: 16px; margin-bottom: 10px;
-}
-.brand-left { display:flex; flex-direction:column; gap: 4px; }
-.brand-name { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: rgba(49, 51, 63, 0.85); }
-.brand-title { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.03em; margin-top: 2px; }
-.brand-tagline { font-size: 1rem; color: rgba(49, 51, 63, 0.7); }
-.brand-right { text-align:right; }
-.pill {
-  display:inline-block; padding: 6px 10px; border-radius: 999px;
-  background: rgba(49, 51, 63, 0.06);
-  border: 1px solid rgba(49, 51, 63, 0.10);
-  font-size: 0.85rem; color: rgba(49, 51, 63, 0.75);
-}
-.footer { margin-top: 18px; font-size: 0.85rem; color: rgba(49, 51, 63, 0.6); }
+.insight { border-left: 4px solid rgba(49, 51, 63, 0.28); padding: 10px 12px; margin-top: 10px;
+          border-radius: 10px; background: rgba(49, 51, 63, 0.04); color: rgba(49, 51, 63, 0.88); font-size: 0.95rem; }
+.footer { margin-top: 18px; font-size: 0.85rem; color: rgba(49, 51, 63, 0.60); }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# =========================
-# HEADER / BRAND
-# =========================
 st.markdown(
     f"""
 <div class="brandbar">
-  <div class="brand-left">
+  <div>
     <div class="brand-name">{COMPANY_NAME}</div>
-    <div class="brand-title">U.S. Power Market Dashboard</div>
+    <div class="brand-title">ISO LMP Dashboard — Day-Ahead & Real-Time</div>
     <div class="brand-tagline">{TAGLINE}</div>
   </div>
-  <div class="brand-right">
-    <div class="pill">Data: EIA Open Data (Retail electricity prices)</div><br/>
-    <div class="pill">Updated on refresh • Cloud deployed</div>
+  <div style="text-align:right;">
+    <div class="pill">Trader view • LMP / Spread / Volatility</div><br/>
+    <div class="pill">Source: CAISO OASIS + PJM DataMiner (if enabled)</div>
   </div>
 </div>
 <hr/>
@@ -85,51 +59,9 @@ st.markdown(
 )
 
 # =========================
-# DATA ACCESS
+# HELPERS
 # =========================
-API_KEY = st.secrets["EIA_API_KEY"]
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_eia_retail_prices(state_ids, start="2019-01"):
-    """
-    Pull monthly retail electricity prices from EIA API v2 for selected states.
-    Returns dataframe with at least: period, stateid, stateDescription, sectorName (if present), price
-    """
-    all_rows = []
-    base = "https://api.eia.gov/v2/electricity/retail-sales/data/"
-    # A small rowCount keeps responses fast; we filter by start anyway.
-    for sid in state_ids:
-        params = {
-            "api_key": API_KEY,
-            "frequency": "monthly",
-            "data[0]": "price",
-            "facets[stateid][]": sid,
-            "start": start,
-            "sort[0][column]": "period",
-            "sort[0][direction]": "desc",
-            "offset": 0,
-            "length": 5000,
-        }
-        r = requests.get(base, params=params, timeout=30)
-        j = r.json()
-        rows = j.get("response", {}).get("data", [])
-        all_rows.extend(rows)
-
-    df = pd.DataFrame(all_rows)
-    if df.empty:
-        return df
-
-    # Normalize columns we rely on
-    if "period" in df.columns:
-        df["period"] = pd.to_datetime(df["period"], errors="coerce")
-    if "price" in df.columns:
-        df["price"] = pd.to_numeric(df["price"], errors="coerce")
-
-    # Some responses include labels; keep them if present
-    # Expected columns often include: stateid, stateDescription, sectorid, sectorName, price, period, units
-    return df.dropna(subset=["period", "price"]).sort_values("period")
-
-def kpi_card(title, value, sub=""):
+def kpi_card(title: str, value: str, sub: str = ""):
     st.markdown(
         f"""
 <div class="card">
@@ -141,185 +73,346 @@ def kpi_card(title, value, sub=""):
         unsafe_allow_html=True,
     )
 
+def insight_box(text: str):
+    st.markdown(f'<div class="insight"><b>Insight:</b> {text}</div>', unsafe_allow_html=True)
+
+def _safe_float(x):
+    try:
+        return float(x)
+    except Exception:
+        return None
+
+def _rolling_vol(series: pd.Series, window: int):
+    return series.rolling(window, min_periods=max(3, window // 2)).std()
+
+# =========================
+# CAISO OASIS (PUBLIC) — DA hourly + RT 5-min
+# Uses SingleZip + resultformat=6 (CSV) as shown in CAISO examples. :contentReference[oaicite:3]{index=3}
+# =========================
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_caiso_lmp(market: str, start_utc: datetime, end_utc: datetime, nodes_csv: str):
+    """
+    market:
+      - "DAM" => hourly day-ahead LMP: queryname=PRC_LMP
+      - "RTM" => 5-min real-time interval LMP: queryname=PRC_INTVL_LMP
+    """
+    queryname = "PRC_LMP" if market == "DAM" else "PRC_INTVL_LMP"
+
+    # CAISO expects timestamps like 20250401T07:00-0000
+    def fmt(dt: datetime) -> str:
+        dt = dt.astimezone(timezone.utc)
+        return dt.strftime("%Y%m%dT%H:%M-0000")
+
+    params = {
+        "queryname": queryname,
+        "startdatetime": fmt(start_utc),
+        "enddatetime": fmt(end_utc),
+        "version": "2",
+        "resultformat": "6",  # CSV
+        "market_run_id": market,
+    }
+    # nodes: comma-separated
+    if nodes_csv.strip():
+        params["node"] = nodes_csv.strip()
+
+    url = "https://oasis.caiso.com/oasisapi/SingleZip"
+    r = requests.get(url, params=params, timeout=60)
+    r.raise_for_status()
+
+    # Response is a zip
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    # take first CSV inside
+    csv_name = next((n for n in z.namelist() if n.lower().endswith(".csv")), None)
+    if not csv_name:
+        return pd.DataFrame()
+
+    raw = z.read(csv_name)
+    df = pd.read_csv(io.BytesIO(raw))
+
+    # Normalize expected columns
+    # Common columns include: PRC_LMP / PRC_INTVL_LMP fields like OPRENDTIME_GMT, LMP, PNODE, etc.
+    # We'll robustly map:
+    time_col = "OPR_DT" if "OPR_DT" in df.columns else None
+    if "OPRENDTIME_GMT" in df.columns:
+        df["ts"] = pd.to_datetime(df["OPRENDTIME_GMT"], errors="coerce", utc=True)
+    elif "INTERVALENDTIME_GMT" in df.columns:
+        df["ts"] = pd.to_datetime(df["INTERVALENDTIME_GMT"], errors="coerce", utc=True)
+    elif time_col:
+        df["ts"] = pd.to_datetime(df[time_col], errors="coerce", utc=True)
+    else:
+        # fallback: find any datetime-like column
+        for c in df.columns:
+            if "TIME" in c.upper():
+                df["ts"] = pd.to_datetime(df[c], errors="coerce", utc=True)
+                break
+
+    # Price
+    price_col = "LMP" if "LMP" in df.columns else None
+    if not price_col:
+        # Try other likely column names
+        for c in df.columns:
+            if c.upper().endswith("LMP"):
+                price_col = c
+                break
+    if price_col:
+        df["lmp"] = pd.to_numeric(df[price_col], errors="coerce")
+
+    # Node/location
+    node_col = None
+    for c in ["PNODE", "APNODE", "NODE", "NODE_NAME", "NODE_ID"]:
+        if c in df.columns:
+            node_col = c
+            break
+    if node_col:
+        df["node"] = df[node_col].astype(str)
+
+    df = df.dropna(subset=["ts", "lmp"])
+    df = df.sort_values("ts")
+    return df[["ts", "node", "lmp"]].reset_index(drop=True)
+
+# =========================
+# PJM (DataMiner/API Portal) — requires subscription key
+# Feeds exist for DA and RT hourly LMPs. :contentReference[oaicite:4]{index=4}
+# We'll implement the common api.pjm.com pattern; if the user doesn't provide a key, we skip gracefully.
+# =========================
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_pjm_lmp(feed: str, start_iso: str, end_iso: str, pnode: str = "WESTERN HUB"):
+    """
+    feed: "da_hrl_lmps" or "rt_hrl_lmps"
+    start_iso/end_iso: e.g. "2026-03-01 00:00"
+    """
+    if not PJM_API_KEY:
+        return pd.DataFrame()
+
+    base = f"https://api.pjm.com/api/v1/{feed}"
+    headers = {"Ocp-Apim-Subscription-Key": PJM_API_KEY}
+
+    # Narrow scope: filter to one aggregate/hub-like pnode to avoid huge pulls
+    params = {
+        "startRow": 1,
+        "rowCount": 5000,
+        # Many PJM feeds accept datetime filters; exact parameter names can vary by feed definition.
+        # We'll try common patterns:
+        "datetime_beginning": start_iso,
+        "datetime_ending": end_iso,
+        "pnode_name": pnode,
+    }
+
+    r = requests.get(base, headers=headers, params=params, timeout=60)
+    if r.status_code != 200:
+        # fail gracefully (show debug in UI)
+        return pd.DataFrame({"error": [f"PJM request failed: {r.status_code}"], "text": [r.text[:500]]})
+
+    j = r.json()
+    # PJM often returns list under "items"
+    items = j.get("items", j if isinstance(j, list) else [])
+    df = pd.DataFrame(items)
+    if df.empty:
+        return df
+
+    # Try to locate timestamp and LMP columns
+    ts_col = None
+    for c in df.columns:
+        if "datetime" in c.lower():
+            ts_col = c
+            break
+    if ts_col:
+        df["ts"] = pd.to_datetime(df[ts_col], errors="coerce")
+
+    lmp_col = None
+    for c in df.columns:
+        if c.lower() in ["lmp", "total_lmp", "lmp_total", "rt_lmp", "da_lmp"] or "lmp" in c.lower():
+            lmp_col = c
+            break
+    if lmp_col:
+        df["lmp"] = pd.to_numeric(df[lmp_col], errors="coerce")
+
+    node_col = None
+    for c in ["pnode_name", "pnode_id", "node", "name"]:
+        if c in df.columns:
+            node_col = c
+            break
+    df["node"] = df[node_col].astype(str) if node_col else "PJM"
+
+    df = df.dropna(subset=["ts", "lmp"]).sort_values("ts")
+    return df[["ts", "node", "lmp"]].reset_index(drop=True)
+
 # =========================
 # SIDEBAR CONTROLS
 # =========================
 st.sidebar.header("Controls")
-st.sidebar.caption("Refine the view — keep it decision-ready.")
+st.sidebar.caption("Keep it trader-simple: pick ISO, market, window, and hub/nodes.")
 
-# Keep it simple + credible (3 flagship states)
-default_states = ["PA", "TX", "CA"]
-state_ids = st.sidebar.multiselect(
-    "States",
-    options=["PA", "TX", "CA", "NY", "IL", "OH", "NJ", "FL", "GA", "NC", "VA", "MA", "MI", "AZ", "CO", "WA"],
-    default=default_states,
-)
+iso = st.sidebar.selectbox("ISO", ["CAISO (OASIS)", "PJM (DataMiner)"])
 
-start_year = st.sidebar.selectbox("Start year", options=[2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], index=2)
-start = f"{start_year}-01"
+market = st.sidebar.selectbox("Market", ["Day-Ahead (DAM)", "Real-Time (RTM)"])
+market_code = "DAM" if "Day-Ahead" in market else "RTM"
 
-# Pull data
-with st.spinner("Loading market data..."):
-    df = fetch_eia_retail_prices(state_ids=state_ids, start=start)
+lookback = st.sidebar.selectbox("Lookback window", ["1 day", "3 days", "7 days"], index=1)
+days = {"1 day": 1, "3 days": 3, "7 days": 7}[lookback]
 
-if df.empty:
-    st.error("No data returned for the selected states/time range. Try expanding the date range or state selection.")
+# Time window (UTC)
+now_utc = datetime.now(timezone.utc)
+start_utc = now_utc - timedelta(days=days)
+end_utc = now_utc
+
+# ISO-specific selectors
+if iso.startswith("CAISO"):
+    st.sidebar.subheader("CAISO nodes (comma-separated)")
+    st.sidebar.caption("Example: TH_NP15_GEN-APND,DLAP_SCE-APND")
+    caiso_nodes = st.sidebar.text_input("Nodes", value="TH_NP15_GEN-APND,DLAP_SCE-APND")
+else:
+    st.sidebar.subheader("PJM hub/pnode")
+    st.sidebar.caption("Use an aggregate/hub name to avoid huge pulls.")
+    pjm_pnode = st.sidebar.text_input("Pnode name", value="WESTERN HUB")
+
+# =========================
+# LOAD DATA
+# =========================
+with st.spinner("Loading ISO LMP data..."):
+    if iso.startswith("CAISO"):
+        df = fetch_caiso_lmp(market=market_code, start_utc=start_utc, end_utc=end_utc, nodes_csv=caiso_nodes)
+        iso_label = f"CAISO {market_code}"
+    else:
+        feed = "da_hrl_lmps" if market_code == "DAM" else "rt_hrl_lmps"
+        # PJM time format often expects local/ISO strings; keep it simple:
+        start_iso = (now_utc - timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+        end_iso = now_utc.strftime("%Y-%m-%d %H:%M")
+        df = fetch_pjm_lmp(feed=feed, start_iso=start_iso, end_iso=end_iso, pnode=pjm_pnode)
+        iso_label = f"PJM {market_code}"
+
+# Handle PJM missing key
+if iso.startswith("PJM") and not PJM_API_KEY:
+    st.warning("PJM is enabled in the dashboard, but no PJM_API_KEY is set in Streamlit secrets. Add it to use PJM DA/RT LMP feeds.")
     st.stop()
 
-# Sector filter (if present)
-sector_col = "sectorName" if "sectorName" in df.columns else None
-if sector_col:
-    sectors = sorted([s for s in df[sector_col].dropna().unique().tolist()])
-    selected_sectors = st.sidebar.multiselect("Sectors", options=sectors, default=sectors)
-    df = df[df[sector_col].isin(selected_sectors)].copy()
+# Handle errors returned as dataframe
+if "error" in df.columns:
+    st.error(df["error"].iloc[0])
+    st.code(df.get("text", pd.Series([""])).iloc[0] if not df.empty else "")
+    st.stop()
 
-# If stateDescription exists, use it; else fall back to stateid
-state_label_col = "stateDescription" if "stateDescription" in df.columns else "stateid"
-df["state_label"] = df[state_label_col].fillna(df.get("stateid", "STATE"))
+if df.empty:
+    st.error("No data returned for that window/nodes. Try a shorter window, different nodes/hub, or switch market.")
+    st.stop()
 
 # =========================
-# KPI ROW
+# KPI ROW (PowerBI-style)
 # =========================
-latest_period = df["period"].max()
-recent = df[df["period"] == latest_period].copy()
-avg_price = df["price"].mean()
-peak_price = df["price"].max()
+latest_ts = df["ts"].max()
+latest_slice = df[df["ts"] == latest_ts]
+latest_median = latest_slice["lmp"].median() if not latest_slice.empty else df["lmp"].iloc[-1]
 
-# Latest median across selected states for a stable "headline"
-latest_median = recent["price"].median() if not recent.empty else df.sort_values("period")["price"].iloc[-1]
+avg_lmp = df["lmp"].mean()
+p95 = df["lmp"].quantile(0.95)
+vol = _rolling_vol(df["lmp"], window=min(24, max(6, len(df) // 10))).iloc[-1]  # crude, but stable
 
 k1, k2, k3, k4 = st.columns(4)
 with k1:
-    kpi_card("Latest (Median, cents/kWh)", f"{latest_median:,.2f}", sub=f"As of {latest_period.strftime('%b %Y')}")
+    kpi_card("Latest LMP (Median)", f"${latest_median:,.2f}", sub=f"{iso_label} • {latest_ts.strftime('%Y-%m-%d %H:%M UTC')}")
 with k2:
-    kpi_card("Average (Selected Range)", f"{avg_price:,.2f}", sub=f"Since {start_year}")
+    kpi_card("Average (Window)", f"${avg_lmp:,.2f}", sub=f"Last {days} day(s)")
 with k3:
-    kpi_card("Peak (Selected Range)", f"{peak_price:,.2f}", sub="Highest observed price")
+    kpi_card("95th Percentile", f"${p95:,.2f}", sub="Spike-prone threshold")
 with k4:
-    # Spread across states for the latest month: max - min
-    if not recent.empty:
-        spread = recent["price"].max() - recent["price"].min()
-        kpi_card("Latest State Spread", f"{spread:,.2f}", sub="Max–Min (cents/kWh)")
-    else:
-        kpi_card("Latest State Spread", "—", sub="Insufficient latest data")
+    kpi_card("Volatility (Rolling)", f"{(vol if pd.notna(vol) else 0):,.2f}", sub="Std dev proxy")
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 # =========================
-# CHARTS (Enterprise-style sections + insights)
+# 1) TREND CHART + INSIGHT
 # =========================
-
-# --- 1) Trend chart ---
-st.subheader("Price Trend (Monthly)")
-trend_df = df.copy()
-
+st.subheader("LMP Trend")
 fig_trend = px.line(
-    trend_df,
-    x="period",
-    y="price",
-    color="state_label",
-    title="Retail Electricity Price — Trend by State (cents/kWh)",
+    df,
+    x="ts",
+    y="lmp",
+    color="node",
+    title=f"{iso_label} LMP — Trend by Node/Hub",
 )
-
 st.plotly_chart(fig_trend, use_container_width=True)
 
-# Insight under chart (plain English)
-if not recent.empty:
-    top_state = recent.sort_values("price", ascending=False).iloc[0]["state_label"]
-    low_state = recent.sort_values("price", ascending=True).iloc[0]["state_label"]
-    top_val = recent["price"].max()
-    low_val = recent["price"].min()
-    insight_1 = (
-        f"Latest month shows **{top_state}** highest at **{top_val:,.2f}¢/kWh** and "
-        f"**{low_state}** lowest at **{low_val:,.2f}¢/kWh**. "
-        "Use this view to quickly spot sustained divergence (structural) vs. temporary spikes (short-lived)."
+# Insight: who leads latest, spread
+if latest_slice["lmp"].nunique() > 1:
+    hi = latest_slice.sort_values("lmp", ascending=False).iloc[0]
+    lo = latest_slice.sort_values("lmp", ascending=True).iloc[0]
+    spread = hi["lmp"] - lo["lmp"]
+    insight_box(
+        f"At the latest timestamp, **{hi['node']}** is highest at **${hi['lmp']:,.2f}** and **{lo['node']}** is lowest at "
+        f"**${lo['lmp']:,.2f}** (spread **${spread:,.2f}**). Spreads widening typically signal localized congestion or loss components."
     )
 else:
-    insight_1 = "Trend view loaded. If the latest month looks sparse, expand the state list or start year."
-
-st.markdown(f'<div class="insight"><b>Insight:</b> {insight_1}</div>', unsafe_allow_html=True)
+    insight_box("Trend confirms the price path for the selected node/hub. Add more nodes to turn this into a spread/congestion monitor.")
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
-# --- 2) Latest month comparison (bar) ---
-st.subheader("Latest Month Comparison")
-bar_df = recent.groupby("state_label", as_index=False)["price"].mean().sort_values("price", ascending=False)
-
-fig_bar = px.bar(
-    bar_df,
-    x="state_label",
-    y="price",
-    title=f"Latest Month Price Comparison (cents/kWh) — {latest_period.strftime('%b %Y')}",
+# =========================
+# 2) DISTRIBUTION / SPIKES + INSIGHT
+# =========================
+st.subheader("Spike & Distribution View")
+fig_hist = px.histogram(
+    df,
+    x="lmp",
+    color="node",
+    nbins=50,
+    title=f"{iso_label} LMP Distribution — Where prices cluster vs spike",
 )
+st.plotly_chart(fig_hist, use_container_width=True)
 
-st.plotly_chart(fig_bar, use_container_width=True)
-
-if len(bar_df) >= 2:
-    leader = bar_df.iloc[0]
-    trailer = bar_df.iloc[-1]
-    pct = ((leader["price"] - trailer["price"]) / trailer["price"]) * 100 if trailer["price"] != 0 else None
-    pct_txt = f"{pct:,.0f}%" if pct is not None else "—"
-    insight_2 = (
-        f"Price dispersion is meaningful: **{leader['state_label']}** is about **{pct_txt}** above "
-        f"**{trailer['state_label']}** this month. If you’re evaluating market entry or pricing strategy, "
-        "this view highlights where customer price pressure is likely highest."
-    )
-else:
-    insight_2 = "Add more states to see comparative dispersion and rank-ordering."
-
-st.markdown(f'<div class="insight"><b>Insight:</b> {insight_2}</div>', unsafe_allow_html=True)
+spike_threshold = p95
+spike_rate = (df["lmp"] >= spike_threshold).mean() * 100.0
+insight_box(
+    f"**Spike frequency:** {spike_rate:,.1f}% of intervals are at/above the **95th percentile (${spike_threshold:,.2f})** in this window. "
+    "If this rate rises week-over-week, traders typically tighten risk limits or widen retail margins (depending on book)."
+)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
-# --- 3) Volatility / stability view (rolling) ---
-st.subheader("Stability Monitor (Rolling 6-Month Volatility)")
-vol_df = trend_df.sort_values("period").copy()
-# rolling std by state
-vol_df["roll_std_6m"] = (
-    vol_df.groupby("state_label")["price"]
-    .rolling(6, min_periods=3)
-    .std()
-    .reset_index(level=0, drop=True)
-)
+# =========================
+# 3) HOURLY HEATMAP (PowerBI-like) + INSIGHT
+# For RT 5-min, we bucket to hour to make it readable.
+# =========================
+st.subheader("Intraday Pattern Heatmap")
 
-fig_vol = px.line(
-    vol_df.dropna(subset=["roll_std_6m"]),
-    x="period",
-    y="roll_std_6m",
-    color="state_label",
-    title="Rolling 6-Month Standard Deviation (cents/kWh)",
-)
+heat = df.copy()
+heat["hour_ts"] = heat["ts"].dt.floor("H")
+heat["hour"] = heat["hour_ts"].dt.hour
+heat["date"] = heat["hour_ts"].dt.date
 
-st.plotly_chart(fig_vol, use_container_width=True)
+heat_agg = heat.groupby(["node", "date", "hour"], as_index=False)["lmp"].mean()
 
-# Insight: which state is most volatile recently
-recent_vol = vol_df[vol_df["period"] == latest_period].dropna(subset=["roll_std_6m"])
-if not recent_vol.empty:
-    v_top = recent_vol.sort_values("roll_std_6m", ascending=False).iloc[0]
-    insight_3 = (
-        f"**{v_top['state_label']}** shows the highest recent volatility (6-month std dev **{v_top['roll_std_6m']:.2f}**). "
-        "Higher volatility often signals changing cost inputs, regulatory adjustments, or supply/demand imbalance—"
-        "which can impact margin and hedging posture."
+# Choose one node for heatmap clarity
+node_for_heat = st.selectbox("Heatmap node", options=sorted(heat_agg["node"].unique().tolist()))
+h = heat_agg[heat_agg["node"] == node_for_heat].copy()
+
+pivot = h.pivot_table(index="hour", columns="date", values="lmp", aggfunc="mean")
+fig_heat = px.imshow(pivot, aspect="auto", title=f"Hourly Pattern — {node_for_heat} (avg $/MWh by hour)")
+st.plotly_chart(fig_heat, use_container_width=True)
+
+# Insight: peak hour and typical ramp
+if not h.empty:
+    by_hour = h.groupby("hour")["lmp"].mean().sort_values(ascending=False)
+    peak_hour = int(by_hour.index[0])
+    peak_val = float(by_hour.iloc[0])
+    trough_hour = int(by_hour.index[-1])
+    trough_val = float(by_hour.iloc[-1])
+    insight_box(
+        f"**Typical peak hour:** {peak_hour}:00 at **${peak_val:,.2f}** vs trough around {trough_hour}:00 at **${trough_val:,.2f}**. "
+        "This is a fast way to spot repeated morning/evening stress and validate hedging blocks (ATC, 5x16/7x24 behavior)."
     )
-else:
-    insight_3 = (
-        "Volatility needs at least ~6 months of data per state. If it’s empty, expand the start year earlier."
-    )
-
-st.markdown(f'<div class="insight"><b>Insight:</b> {insight_3}</div>', unsafe_allow_html=True)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
-# --- 4) Data table (auditability) ---
-st.subheader("Data (Audit & Export)")
-st.caption("This table is here so the dashboard remains audit-friendly and trustworthy — you can verify numbers fast.")
+# =========================
+# 4) AUDIT TABLE + EXPORT
+# =========================
+st.subheader("Audit Table (Downloadable)")
+st.caption("This keeps the dashboard decision-grade — you can validate the source series quickly.")
 
-show_cols = [c for c in ["period", "stateid", "stateDescription", "sectorName", "price", "units"] if c in df.columns]
-st.dataframe(df[show_cols].sort_values("period", ascending=False), use_container_width=True, height=360)
+show = df.sort_values("ts", ascending=False)
+st.dataframe(show, use_container_width=True, height=360)
 
-# Simple download
-csv = df[show_cols].sort_values("period").to_csv(index=False).encode("utf-8")
-st.download_button("Download CSV", data=csv, file_name="eia_retail_electricity_prices.csv", mime="text/csv")
+csv = show.to_csv(index=False).encode("utf-8")
+st.download_button("Download CSV", data=csv, file_name=f"{iso_label.replace(' ', '_').lower()}_lmp.csv", mime="text/csv")
 
-# Footer
-st.markdown(f'<div class="footer">{FOOTER_NOTE}</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="footer">© {datetime.now().year} {COMPANY_NAME}. Internal use.</div>', unsafe_allow_html=True)
