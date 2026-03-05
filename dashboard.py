@@ -10,58 +10,75 @@ st.title("⚡ U.S. Power Market Dashboard")
 API_KEY = st.secrets["EIA_API_KEY"]
 
 
+# ---------------------------
+# DATA FUNCTION
+# ---------------------------
+
 def get_eia_data(url):
+
     r = requests.get(url)
     data = r.json()
 
+    if "response" not in data:
+        st.error("EIA API returned unexpected format")
+        st.write(data)
+        st.stop()
+
     df = pd.DataFrame(data["response"]["data"])
 
-    df["period"] = pd.to_datetime(df["period"])
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    # Convert columns safely
+    if "period" in df.columns:
+        df["period"] = pd.to_datetime(df["period"])
+
+    if "price" in df.columns:
+        df["price"] = pd.to_numeric(df["price"], errors="coerce")
 
     return df
 
 
-# PJM price
+# ---------------------------
+# API REQUESTS
+# ---------------------------
+
 pjm_url = f"https://api.eia.gov/v2/electricity/retail-sales/data/?api_key={API_KEY}&frequency=monthly&data[0]=price&facets[stateid][]=PA"
 
-pjm = get_eia_data(pjm_url)
-
-
-# Texas price
 texas_url = f"https://api.eia.gov/v2/electricity/retail-sales/data/?api_key={API_KEY}&frequency=monthly&data[0]=price&facets[stateid][]=TX"
 
-texas = get_eia_data(texas_url)
-
-
-# California price
 ca_url = f"https://api.eia.gov/v2/electricity/retail-sales/data/?api_key={API_KEY}&frequency=monthly&data[0]=price&facets[stateid][]=CA"
 
+
+pjm = get_eia_data(pjm_url)
+texas = get_eia_data(texas_url)
 california = get_eia_data(ca_url)
 
 
-# ---- Metrics ----
+# ---------------------------
+# METRICS
+# ---------------------------
 
 col1, col2, col3 = st.columns(3)
 
 col1.metric(
-    "Pennsylvania Power Price",
-    f"{pjm['value'].iloc[0]:.2f} cents/kWh"
+    "Pennsylvania Electricity Price",
+    f"{pjm['price'].iloc[0]:.2f} cents/kWh"
 )
 
 col2.metric(
-    "Texas Power Price",
-    f"{texas['value'].iloc[0]:.2f} cents/kWh"
+    "Texas Electricity Price",
+    f"{texas['price'].iloc[0]:.2f} cents/kWh"
 )
 
 col3.metric(
-    "California Power Price",
-    f"{california['value'].iloc[0]:.2f} cents/kWh"
+    "California Electricity Price",
+    f"{california['price'].iloc[0]:.2f} cents/kWh"
 )
 
 st.divider()
 
-# Combine markets
+
+# ---------------------------
+# COMBINE DATA
+# ---------------------------
 
 df_all = pd.concat([
     pjm.assign(market="Pennsylvania"),
@@ -70,10 +87,14 @@ df_all = pd.concat([
 ])
 
 
+# ---------------------------
+# CHART
+# ---------------------------
+
 fig = px.line(
     df_all,
     x="period",
-    y="value",
+    y="price",
     color="market",
     title="Retail Electricity Price Trends"
 )
