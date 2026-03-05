@@ -1,38 +1,32 @@
 import streamlit as st
 import pandas as pd
+import requests
 import plotly.express as px
-from datetime import datetime
 
 st.set_page_config(layout="wide")
 
-st.title("⚡ Energy Market Pricing Dashboard")
+st.title("⚡ U.S. Energy Market Dashboard")
 
-# get today's date
-today = datetime.today().strftime("%Y%m%d")
+API_KEY = st.secrets["EIA_API_KEY"]
 
-url = f"http://mis.nyiso.com/public/csv/realtime/{today}realtime_zone.csv"
+url = f"https://api.eia.gov/v2/electricity/rto/region-data/data/?api_key={API_KEY}&frequency=hourly&data[0]=value"
 
-st.write("Data Source:", url)
+response = requests.get(url)
 
-try:
-    df = pd.read_csv(url)
+data = response.json()["response"]["data"]
 
-    df["Time Stamp"] = pd.to_datetime(df["Time Stamp"])
+df = pd.DataFrame(data)
 
-    st.subheader("Real Time Electricity Prices")
+df["period"] = pd.to_datetime(df["period"])
 
-    fig = px.line(
-        df,
-        x="Time Stamp",
-        y="LBMP ($/MWHr)",
-        color="Name"
-    )
+fig = px.line(
+    df,
+    x="period",
+    y="value",
+    color="region",
+    title="Wholesale Electricity Prices"
+)
 
-    st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Market Data")
-
-    st.dataframe(df)
-
-except:
-    st.error("Today's NYISO file is not available yet.")
+st.dataframe(df)
