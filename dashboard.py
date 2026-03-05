@@ -1,59 +1,38 @@
 import streamlit as st
 import pandas as pd
-import requests
 import plotly.express as px
+from datetime import datetime
 
-st.set_page_config(
-    page_title="Energy Market Pricing",
-    layout="wide"
-)
+st.set_page_config(layout="wide")
 
 st.title("⚡ Energy Market Pricing Dashboard")
 
-st.markdown("Live PJM electricity pricing data")
+# get today's date
+today = datetime.today().strftime("%Y%m%d")
 
-# PJM API
-url = "https://api.pjm.com/api/v1/da_hrl_lmps"
+url = f"http://mis.nyiso.com/public/csv/realtime/{today}realtime_zone.csv"
 
-params = {
-    "rowCount": 24,
-    "sort": "datetime_beginning_ept",
-    "order": "desc"
-}
+st.write("Data Source:", url)
 
 try:
-    response = requests.get(url, params=params)
-    data = response.json()
+    df = pd.read_csv(url)
 
-    records = data["items"]
+    df["Time Stamp"] = pd.to_datetime(df["Time Stamp"])
 
-    df = pd.DataFrame(records)
-
-    df["datetime_beginning_ept"] = pd.to_datetime(df["datetime_beginning_ept"])
-
-    df = df.sort_values("datetime_beginning_ept")
-
-    st.subheader("Day Ahead LMP Prices")
+    st.subheader("Real Time Electricity Prices")
 
     fig = px.line(
         df,
-        x="datetime_beginning_ept",
-        y="total_lmp_da",
-        title="PJM Day Ahead Price ($/MWh)",
-        markers=True
+        x="Time Stamp",
+        y="LBMP ($/MWHr)",
+        color="Name"
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Market Price Table")
+    st.subheader("Market Data")
 
-    st.dataframe(
-        df[[
-            "datetime_beginning_ept",
-            "pnode_name",
-            "total_lmp_da"
-        ]]
-    )
+    st.dataframe(df)
 
 except:
-    st.error("Could not load PJM data.")
+    st.error("Today's NYISO file is not available yet.")
