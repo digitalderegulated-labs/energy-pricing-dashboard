@@ -9,8 +9,8 @@ st.title("⚡ U.S. Power Market Dashboard")
 
 API_KEY = st.secrets["EIA_API_KEY"]
 
-def get_data(series_id):
-    url = f"https://api.eia.gov/v2/seriesid/{series_id}?api_key={API_KEY}"
+
+def get_eia_data(url):
     r = requests.get(url)
     data = r.json()
 
@@ -22,72 +22,60 @@ def get_data(series_id):
     return df
 
 
-# PJM wholesale electricity price
-pjm = get_data("ELEC.PRICE.PJM-ALL.M")
+# PJM price
+pjm_url = f"https://api.eia.gov/v2/electricity/retail-sales/data/?api_key={API_KEY}&frequency=monthly&data[0]=price&facets[stateid][]=PA"
 
-# ERCOT price
-ercot = get_data("ELEC.PRICE.ERCOT-ALL.M")
+pjm = get_eia_data(pjm_url)
+
+
+# Texas price
+texas_url = f"https://api.eia.gov/v2/electricity/retail-sales/data/?api_key={API_KEY}&frequency=monthly&data[0]=price&facets[stateid][]=TX"
+
+texas = get_eia_data(texas_url)
+
 
 # California price
-caiso = get_data("ELEC.PRICE.CAISO-ALL.M")
+ca_url = f"https://api.eia.gov/v2/electricity/retail-sales/data/?api_key={API_KEY}&frequency=monthly&data[0]=price&facets[stateid][]=CA"
 
-# Natural gas price
-gas = get_data("NG.RNGWHHD.M")
+california = get_eia_data(ca_url)
 
-# Electricity demand
-demand = get_data("EBA.US48-ALL.D.H")
 
-# ---- metrics ----
+# ---- Metrics ----
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 
 col1.metric(
-    "PJM Power Price",
-    f"${pjm['value'].iloc[0]:.2f}/MWh"
+    "Pennsylvania Power Price",
+    f"{pjm['value'].iloc[0]:.2f} cents/kWh"
 )
 
 col2.metric(
-    "ERCOT Power Price",
-    f"${ercot['value'].iloc[0]:.2f}/MWh"
+    "Texas Power Price",
+    f"{texas['value'].iloc[0]:.2f} cents/kWh"
 )
 
 col3.metric(
-    "CAISO Power Price",
-    f"${caiso['value'].iloc[0]:.2f}/MWh"
-)
-
-col4.metric(
-    "Henry Hub Gas",
-    f"${gas['value'].iloc[0]:.2f}/MMBtu"
+    "California Power Price",
+    f"{california['value'].iloc[0]:.2f} cents/kWh"
 )
 
 st.divider()
 
-# ---- power price chart ----
+# Combine markets
 
-power_df = pd.concat([
-    pjm.assign(market="PJM"),
-    ercot.assign(market="ERCOT"),
-    caiso.assign(market="CAISO")
+df_all = pd.concat([
+    pjm.assign(market="Pennsylvania"),
+    texas.assign(market="Texas"),
+    california.assign(market="California")
 ])
 
+
 fig = px.line(
-    power_df,
+    df_all,
     x="period",
     y="value",
     color="market",
-    title="Wholesale Power Prices"
+    title="Retail Electricity Price Trends"
 )
 
 st.plotly_chart(fig, use_container_width=True)
-
-# ---- demand chart ----
-
-fig2 = px.line(
-    demand,
-    x="period",
-    y="value",
-    title="U.S. Electricity Demand"
-)
-
-st.plotly_chart(fig2, use_container_width=True)
