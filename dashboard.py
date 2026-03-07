@@ -327,7 +327,6 @@ spike_rate = (df["lmp"] >= p95).mean() * 100.0
 # EXECUTIVE VIEW (NON-TRADER FRIENDLY)
 # =========================================================
 with tab_exec:
-    st.subheader("Executive Summary — Price Level, Spikes, and Pattern")
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
