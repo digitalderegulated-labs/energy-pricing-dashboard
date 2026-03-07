@@ -341,7 +341,7 @@ with tab_exec:
 
     st.markdown("<hr/>", unsafe_allow_html=True)
 
-    st.markdown("### Price Trend (what leadership needs)")
+    st.markdown("### Price Trend ")
     fig = px.line(df, x="ts", y="lmp", color="node", title="Price over time (selected location filter)")
     st.plotly_chart(fig, use_container_width=True)
 
@@ -352,7 +352,7 @@ with tab_exec:
 
     st.markdown("<hr/>", unsafe_allow_html=True)
 
-    st.markdown("### Distribution (how ‘spiky’ is the market?)")
+    st.markdown("### Distribution ")
     fig2 = px.histogram(df, x="lmp", nbins=50, color="node", title="Where prices cluster vs spike")
     st.plotly_chart(fig2, use_container_width=True)
 
@@ -458,7 +458,6 @@ with tab_spreads:
 # =========================================================
 with tab_qa:
     st.subheader("Data QA — API URL, Returned Columns, and Audit Table")
-    st.caption("If a dashboard isn’t auditable, traders won’t trust it.")
 
     if show_debug and not dbg.empty:
         st.markdown("### Request log (truth source)")
